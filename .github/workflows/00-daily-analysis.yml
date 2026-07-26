@@ -542,3 +542,10 @@ jobs:
             echo "📜 最近日志（最后 30 行）:"
             tail -30 logs/stock_analysis_*.log 2>/dev/null || echo "无日志"
           fi
+env:
+  NEWS_MAX_AGE_DAYS: 7
+  BIAS_THRESHOLD: 3.0
+  ENABLE_NEWS_ANALYSIS: true
+  ENABLE_MACRO_ANALYSIS: true
+  MACRO_NEWS_SOURCES: "美联储,加息,地缘冲突,原油,黄金,美元指数,英伟达,微软,苹果,特斯拉,三星,SK海力士,博通,并购,收购,战略合作,合资"
+         
