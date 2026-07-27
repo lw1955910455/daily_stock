@@ -5,8 +5,9 @@
 - 数据源状态表格(清楚标出哪个源挂了)
 - 无新内容时发送心跳邮件(显示"今日无新消息")
 - 程序崩溃时发送"异常告警"邮件
-- DRY_RUN=1 时只写 email_preview.html 不发送
+- 默认强制真实发送(DRY_RUN 已被强制置 False),不写本地预览文件
 """
+import os
 import smtplib
 import datetime as dt
 import traceback as _tb
@@ -17,6 +18,9 @@ from zoneinfo import ZoneInfo
 
 from config import (SMTP_HOST, SMTP_PORT, MAIL_USER, MAIL_AUTH_CODE,
                     MAIL_TO, DRY_RUN)
+
+# 强制真实发送模式:覆盖 config 中按环境变量读取的 DRY_RUN(即使 DRY_RUN=1 也发真实邮件)
+DRY_RUN = False
 
 TZ = ZoneInfo("Asia/Shanghai")
 
@@ -211,18 +215,23 @@ def render_alert(error_msg: str, tb_text: str = "") -> str:
             "<pre>{}</pre></div>".format(now, error_msg, (tb_text or _tb.format_exc())))
 
 def send_mail(subject: str, html: str) -> str:
-    if DRY_RUN or not MAIL_USER or not MAIL_AUTH_CODE:
-        with open("email_preview.html", "w", encoding="utf-8") as f:
-            f.write(html)
-        return ("DRY_RUN 或未配置邮箱:已写入 email_preview.html(未发送)。"
-                if DRY_RUN else "未配置 QQ_EMAIL_USER/QQ_EMAIL_AUTH_CODE:已写入 email_preview.html。")
+    # 发件凭据优先级:MAIL_USER/MAIL_AUTH_CODE → 回退 GitHub Secrets 中的
+    # EMAIL_SENDER / EMAIL_PASSWORD(二者任一未读到时取回退值)
+    user = MAIL_USER or os.environ.get("EMAIL_SENDER", "")
+    auth = MAIL_AUTH_CODE or os.environ.get("EMAIL_PASSWORD", "")
+    if not user or not auth:
+        # 凭据缺失无法发送:直接抛错,由 monitor.main() 的异常捕获处理,
+        # 不再静默写本地预览文件(避免"以为发了其实没发")
+        raise ValueError(
+            "未配置发件凭据,无法发送邮件。请在环境变量/GitHub Secrets 中设置 "
+            "QQ_EMAIL_USER / QQ_EMAIL_AUTH_CODE,或 EMAIL_SENDER / EMAIL_PASSWORD。")
     msg = MIMEText(html, "html", "utf-8")
     msg["Subject"] = Header(subject, "utf-8")
-    msg["From"] = formataddr(("A股监控机器人", MAIL_USER))
+    msg["From"] = formataddr(("A股监控机器人", user))
     msg["To"] = MAIL_TO
     with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=30) as s:
-        s.login(MAIL_USER, MAIL_AUTH_CODE)
-        s.sendmail(MAIL_USER, [MAIL_TO], msg.as_string())
+        s.login(user, auth)
+        s.sendmail(user, [MAIL_TO], msg.as_string())
     return "邮件已发送至 " + MAIL_TO
 
 def send_alert(error_msg: str) -> str:

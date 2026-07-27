@@ -84,10 +84,13 @@ git push -u origin main
 ### 第 4 步:配置 Secrets(邮箱凭证)
 仓库页面 → Settings → Secrets and variables → **Actions** → New repository secret,添加两条:
 
+发件凭据支持**两套**,任选其一配置即可(`mailer.py` 优先读前者,读不到则回退后者):
+
 | Name | Value |
 |---|---|
 | `QQ_EMAIL_USER` | 你的发件 QQ 邮箱,如 `1955910455@qq.com` |
 | `QQ_EMAIL_AUTH_CODE` | 第 1 步拿到的 16 位授权码 |
+| 或 `EMAIL_SENDER` / `EMAIL_PASSWORD` | 回退凭据(同样是发件邮箱 + 授权码) |
 
 ### 第 5 步:启用并测试
 1. 仓库页面 → **Actions** 标签 → 如提示则点 "I understand… enable them"
@@ -106,16 +109,21 @@ git push -u origin main
 
 ```bash
 pip install -r requirements.txt
-# 只生成预览不发邮件:
-set DRY_RUN=1 && python monitor.py        # Windows CMD
-DRY_RUN=1 python monitor.py               # Git Bash / Linux
-# 打开生成的 email_preview.html 查看效果
 
-# 真实发送测试:
+# 真实发送测试(mailer 现强制真实发送,不再写预览文件):
+# 凭据任选一套,设置后直接运行即发送:
 set QQ_EMAIL_USER=xxx@qq.com
 set QQ_EMAIL_AUTH_CODE=十六位授权码
 python monitor.py
+# 或使用回退凭据:
+set EMAIL_SENDER=xxx@qq.com
+set EMAIL_PASSWORD=十六位授权码
+python monitor.py
 ```
+
+> 注:旧版的 `DRY_RUN=1` 预览模式已移除——`mailer.py` 现强制真实发送、
+> 不再生成 `email_preview.html`。如需本地查看邮件排版,可临时把 `mailer.py` 顶部
+> 的 `DRY_RUN = False` 改回读取(或单独写预览),但正式部署请保持强制发送。
 
 ## 日常维护
 

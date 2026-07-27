@@ -1,0 +1,81 @@
+name: A-Stock Market Monitor
+
+on:
+  schedule:
+    # GitHub Actions 使用 UTC 时间,北京时间 = UTC + 8
+    # 北京 06:00 → UTC 22:00(前一天) | 12:00 → 04:00 | 18:00 → 10:00 | 23:00 → 15:00
+    - cron: '0 22,4,10,15 * * *'
+  workflow_dispatch:   # 支持在 Actions 页面手动触发,方便测试
+    inputs:
+      lookback_hours:
+        description: '回看窗口(小时)'
+        required: false
+        default: '8'
+      force_emergency:
+        description: '强制启用百度应急搜索模式'
+        type: boolean
+        required: false
+        default: false
+      reset_state:
+        description: '重置失败计数 / 退出应急模式'
+        type: boolean
+        required: false
+        default: false
+
+# 需要 contents:write 才能在运行后把状态文件(.monitor_state.json)提交回仓库,
+# 实现"连续失败计数"跨次运行持久化(否则每次都是全新环境,计数会清零)。
+permissions:
+  contents: write
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run monitor
+        env:
+          QQ_EMAIL_USER: ${{ secrets.QQ_EMAIL_USER }}
+          QQ_EMAIL_AUTH_CODE: ${{ secrets.QQ_EMAIL_AUTH_CODE }}
+          MAIL_TO: '1955910455@qq.com'
+          LOOKBACK_HOURS: ${{ github.event.inputs.lookback_hours || '8' }}
+          FORCE_EMERGENCY: ${{ github.event.inputs.force_emergency == 'true' && '1' || '' }}
+          RESET_EMERGENCY: ${{ github.event.inputs.reset_state == 'true' && '1' || '' }}
+        run: python monitor.py
+
+      # 即使部分数据源失败,也把预览文件留档便于排查
+      - name: Upload preview (if generated)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: email-preview
+          path: email_preview.html
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # 把本次运行后的状态文件(.monitor_state.json)提交回仓库,
+      # 使"连续失败计数 / 应急模式"在下次运行时依然有效。
+      # 提交信息含 [skip ci],避免触发新一轮 workflow。
+      - name: Persist monitor state
+        if: always()
+        run: |
+          git config user.name "monitor-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add .monitor_state.json
+          if git diff --cached --quiet; then
+            echo "状态无变化,跳过提交"
+          else
+            git commit -m "chore: update monitor state [skip ci]"
+            git push || echo "push 失败(可忽略,下次运行会重试)"
+          fi
