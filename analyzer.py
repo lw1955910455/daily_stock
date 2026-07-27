@@ -15,6 +15,7 @@ import requests
 
 from config import (ANNOUNCEMENT_KEYWORDS, PERFORMANCE_KEYWORDS,
                     POLICY_KEYWORD_SECTORS, POLICY_KEYWORDS,
+                    POLICY_BEARISH_SECTORS,
                     EVENT_RULES, INTL_KEYWORD_SECTORS, INTL_EN_ALIAS,
                     HEADERS, REQUEST_TIMEOUT)
 
@@ -83,31 +84,36 @@ def analyze_policies(policies: list, stock_map: dict) -> list:
     hits = []
     for p in policies:
         kws = _hit_keywords(p["title"], POLICY_KEYWORDS)
-        if not kws:
+        bear = _hit_keywords(p["title"], list(POLICY_BEARISH_SECTORS.keys()))
+        if not kws and not bear:
             continue
         sectors = sorted({s for k in kws for s in POLICY_KEYWORD_SECTORS[k]})
+        bear_sectors = sorted({s for k in bear for s in POLICY_BEARISH_SECTORS[k]})
         stocks = extract_stocks(p["title"], stock_map)
-        hits.append({**p, "keywords": kws, "sectors": sectors, "stocks": stocks})
+        hits.append({**p, "keywords": kws, "sectors": sectors,
+                     "bearish_sectors": bear_sectors, "stocks": stocks})
     return hits
 
 
 def analyze_events(news: list, stock_map: dict) -> list:
-    """快讯/新闻按事件催化规则匹配"""
+    """快讯/新闻按事件催化规则匹配(同时标注利好/利空板块)"""
     hits = []
     for n in news:
         text = (n.get("title") or "") + " " + (n.get("content") or "")
-        matched_rules, sectors, kws = [], set(), []
+        matched_rules, sectors, bear_sectors, kws = [], set(), set(), []
         for rule in EVENT_RULES:
             got = _hit_keywords(text, rule["keywords"])
             if got:
                 matched_rules.append(rule["name"])
                 sectors.update(rule["sectors"])
+                bear_sectors.update(rule.get("bearish_sectors", []))
                 kws.extend(got)
         if not matched_rules:
             continue
         stocks = extract_stocks(text, stock_map)
         hits.append({**n, "events": matched_rules, "keywords": kws,
-                     "sectors": sorted(sectors), "stocks": stocks})
+                     "sectors": sorted(sectors),
+                     "bearish_sectors": sorted(bear_sectors), "stocks": stocks})
     return hits
 
 

@@ -40,6 +40,7 @@ th{background:#f5f5f5;text-align:left;}
 .tag{display:inline-block;background:#eef;border-radius:4px;padding:0 6px;
      margin:0 3px 2px 0;font-size:12px;color:#334;}
 .sector{background:#e8f6ef;color:#1e7d4f;}
+.bear{background:#fde8e8;color:#c0392b;}
 .time{color:#888;font-size:12px;}
 .src{color:#888;font-size:12px;}
 a{color:#1a5fb4;text-decoration:none;}
@@ -111,14 +112,15 @@ def render_html(res, sector_res, policy_hits, event_hits, ann_hits,
     # ===== 政策监测 =====
     parts.append("<h2>📜 政策监测({}条命中)</h2>".format(len(policy_hits)))
     if policy_hits:
-        parts.append("<table><tr><th>来源</th><th>政策文件</th><th>关键词</th><th>关联板块</th></tr>")
+        parts.append("<table><tr><th>来源</th><th>政策文件</th><th>关键词</th><th>利好板块</th><th>利空板块</th></tr>")
         for p in policy_hits:
             parts.append("<tr><td>{}<br><span class='time'>{}</span></td>"
-                         "<td><a href='{}'>{}</a>{}</td><td>{}</td><td>{}</td></tr>".format(
+                         "<td><a href='{}'>{}</a>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>".format(
                              p["source"], p.get("date", ""), p["url"], p["title"],
                              ("<br><span class='time'>提及:{}</span>".format(_stock_str(p["stocks"]))
                               if p.get("stocks") else ""),
-                             _tags(p["keywords"]), _tags(p["sectors"], "tag sector")))
+                             _tags(p["keywords"]), _tags(p["sectors"], "tag sector"),
+                             _tags(p.get("bearish_sectors", []), "tag bear")))
         parts.append("</table>")
     else:
         parts.append("<p class='time'>无命中。</p>")
@@ -126,15 +128,16 @@ def render_html(res, sector_res, policy_hits, event_hits, ann_hits,
     # ===== 事件催化 =====
     parts.append("<h2>⚡ 事件催化监测({}条命中)</h2>".format(len(event_hits)))
     if event_hits:
-        parts.append("<table><tr><th>来源/时间</th><th>快讯</th><th>事件类型</th><th>利好板块</th></tr>")
+        parts.append("<table><tr><th>来源/时间</th><th>快讯</th><th>事件类型</th><th>利好板块</th><th>利空板块</th></tr>")
         for e in event_hits:
             t = e["time"].strftime("%m-%d %H:%M") if e.get("time") else ""
             parts.append("<tr><td>{}<br><span class='time'>{}</span></td>"
-                         "<td><a href='{}'>{}</a>{}</td><td>{}</td><td>{}</td></tr>".format(
+                         "<td><a href='{}'>{}</a>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>".format(
                              e["source"], t, e["url"], e["title"],
                              ("<br><span class='time'>提及:{}</span>".format(_stock_str(e["stocks"]))
                               if e.get("stocks") else ""),
-                             _tags(e["events"]), _tags(e["sectors"], "tag sector")))
+                             _tags(e["events"]), _tags(e["sectors"], "tag sector"),
+                             _tags(e.get("bearish_sectors", []), "tag bear")))
         parts.append("</table>")
     else:
         parts.append("<p class='time'>无命中。</p>")
